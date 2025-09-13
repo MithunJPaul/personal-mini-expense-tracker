@@ -1,465 +1,378 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Mini Expense Tracker</title>
-  <meta name="theme-color" content="#111111">
+  <meta name="theme-color" content="#111111" />
   <style>
-    /* Basic body fallback styles while JS loads */
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji'; margin:0; }
-    .loading { padding: 32px; color: #444; }
+    .loading { padding: 32px; color:#444; }
+    :root{ --bg:#fff; --ink:#111; --muted:#6b7280; --line:#e5e7eb; --pill:#f3f4f6; --accent:#111; }
+    *{ box-sizing:border-box; }
+    .hdr{ position:sticky; top:0; display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--line); background:rgba(255,255,255,.92); backdrop-filter:saturate(180%) blur(8px); }
+    .title{ font-weight:800; }
+    .sub{ color:var(--muted); font-size:.9rem; }
+    .actions{ display:flex; gap:8px; }
+    .btn{ border:1px solid var(--line); background:#f9fafb; padding:10px 12px; border-radius:12px; font-weight:600; cursor:pointer; }
+    .btn.ghost{ background:#fff; }
+    .btn.primary{ background:var(--accent); color:#fff; }
+    .tabs{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; padding:8px; border-bottom:1px solid var(--line); }
+    .tab{ border:1px solid var(--line); padding:10px 12px; border-radius:12px; background:#f3f4f6; font-weight:700; color:#555; cursor:pointer; }
+    .tab.active{ background:#111; color:#fff; }
+    main{ padding:16px; max-width:760px; margin:0 auto; }
+    .card{ border:1px solid var(--line); border-radius:16px; padding:12px; margin-bottom:14px; }
+    .card-ttl{ font-weight:800; margin-bottom:8px; }
+    .row2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:8px 0; }
+    .row-sb{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .col{ display:flex; flex-direction:column; }
+    label{ color:#555; font-size:.9rem; margin:6px 0; }
+    input, select, textarea{ width:100%; border:1px solid var(--line); border-radius:12px; padding:10px 12px; }
+    textarea{ min-height:72px; }
+    .list-hd{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:6px; }
+    .list-ttl{ font-weight:700; }
+    .list-sub{ color:var(--muted); font-size:.9rem; }
+    .muted{ color:var(--muted); }
+    .row{ display:flex; gap:12px; border:1px solid var(--line); border-radius:12px; padding:10px; margin-bottom:8px; }
+    .row-title{ font-weight:700; }
+    .row-sub{ color:#6b7280; font-size:.85rem; }
+    .row-notes{ color:#374151; font-size:.9rem; margin-top:4px; }
+    .row-side{ display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
+    .amt{ font-weight:800; }
+    .lnk{ background:none; border:none; padding:0; color:#2563eb; font-weight:700; cursor:pointer; }
+    .lnk.danger{ color:#dc2626; }
+    .pills{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+    .pill{ padding:6px 10px; border-radius:999px; background:var(--pill); border:1px solid var(--line); }
+    .bullet{ list-style:none; padding:0; margin:6px 0 10px; }
+    .bullet li{ display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px dashed var(--line); }
+    .subttl{ font-weight:700; margin-top:8px; }
+    .ftr{ text-align:center; color:var(--muted); font-size:.8rem; margin:16px 0 28px; }
+    @media (max-width: 560px){ .row2{ grid-template-columns:1fr; } }
   </style>
 </head>
 <body>
   <div class="loading">Loading Mini Expense Tracker…</div>
+  <div id="app"></div>
+
   <script>
-  // === BEGIN APP CODE (Browser/PWA, no deps) ===
   (function () {
     'use strict';
 
-    // PWA Setup (manifest + service worker)
-    (function setupPWA(){
-      try {
-        const manifest = {
-          name: "Mini Expense Tracker",
-          short_name: "Expenses",
-          start_url: ".",
-          display: "standalone",
-          background_color: "#ffffff",
-          theme_color: "#111111",
-          icons: [
-            { src: makePngDataURL('#111111','#ffffff'), sizes: "192x192", type: "image/png" }
-          ]
-        };
-        const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
-        const link = document.createElement('link');
-        link.rel = 'manifest';
-        link.href = URL.createObjectURL(blob);
-        document.head.appendChild(link);
-
-        if ('serviceWorker' in navigator) {
-          const swCode = "self.addEventListener('install', e => { e.waitUntil(caches.open('me-cache-v1').then(c => c.addAll(['./']))); self.skipWaiting(); }); self.addEventListener('activate', e => { e.waitUntil(self.clients.claim()); }); self.addEventListener('fetch', e => { e.respondWith(caches.match(e.request).then(r => r || fetch(e.request))); });";
-          const swBlob = new Blob([swCode], { type: 'text/javascript' });
-          const swUrl = URL.createObjectURL(swBlob);
-          navigator.serviceWorker.register(swUrl).catch(()=>{});
-        }
-      } catch {}
-    })();
-
-    function makePngDataURL(bg = '#111111', fg = '#ffffff'){
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = 192; canvas.height = 192; const ctx = canvas.getContext('2d');
-        ctx.fillStyle = bg; ctx.fillRect(0,0,192,192);
-        ctx.fillStyle = fg; ctx.font = 'bold 110px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('₹', 96, 110);
-        return canvas.toDataURL('image/png');
-      } catch { return ''; }
-    }
-
-    // Utilities & Helpers
+    // ---------- Helpers ----------
     const LS = {
       set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} },
       get(k, fallback) { try { const raw = localStorage.getItem(k); return raw ? JSON.parse(raw) : fallback; } catch (_) { return fallback; } },
     };
-
-    const LS_KEYS = { EXPENSES: 'me.expenses', RULES: 'me.rules', CATEGORIES: 'me.categories', SETTINGS: 'me.settings' };
+    const LS_KEYS = { EXPENSES:'me.expenses', RULES:'me.rules', CATEGORIES:'me.categories', SETTINGS:'me.settings' };
     const DEFAULT_CATEGORIES = ['Food & Drinks','Groceries','Travel','Shopping','Bills & Utilities','Health','Entertainment','Education','Transfers','Fees','Other'];
     const PAYMENT_METHODS = ['UPI','Card','Cash','Wallet','NetBanking','Other'];
-    const DEFAULT_RULES = [
-      { id: uid(), pattern: 'zomato|swiggy', isRegex: true, flags: 'i', category: 'Food & Drinks', enabled: true },
-      { id: uid(), pattern: 'uber|ola', isRegex: true, flags: 'i', category: 'Travel', enabled: true },
-      { id: uid(), pattern: 'amazon|flipkart|myntra|ajio|nykaa', isRegex: true, flags: 'i', category: 'Shopping', enabled: true },
-      { id: uid(), pattern: 'electric|bescom|tneb|tata power|reliance energy|bsnl|jio|airtel|vi', isRegex: true, flags: 'i', category: 'Bills & Utilities', enabled: true },
-      { id: uid(), pattern: 'hospital|clinic|pharma|med|apollo|practo', isRegex: true, flags: 'i', category: 'Health', enabled: true },
-    ];
-
-    function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+    function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
     function todayISO(){ const d=new Date(); const z=d.getTimezoneOffset()*60000; return new Date(d.getTime()-z).toISOString().slice(0,10); }
     function monthKey(ds){ return (ds||todayISO()).slice(0,7); }
-    function currency(n){ const num = Number(n||0); if (!isFinite(num)) return '₹0'; try{ return new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(num); }catch{ return `₹${num}`; } }
+    function currency(n){ const num=Number(n||0); if(!isFinite(num)) return '₹0'; try{ return new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(num);}catch{ return '₹'+num; } }
+    function escapeHtml(s){ return String(s ?? '').replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
     function applyRules(rules, text, fallback='Other'){
-      if (!text) return fallback;
-      for (const r of rules||[]) {
-        if (!r?.enabled) continue;
-        try {
-          if (r.isRegex) { const re = new RegExp(r.pattern, r.flags||'i'); if (re.test(text)) return r.category; }
-          else { const pat = String(r.pattern||'').toLowerCase(); if (pat && String(text).toLowerCase().includes(pat)) return r.category; }
-        } catch {}
+      if(!text) return fallback;
+      for(const r of rules||[]){ if(!r?.enabled) continue;
+        try{
+          if(r.isRegex){ const re=new RegExp(r.pattern, r.flags||'i'); if(re.test(text)) return r.category; }
+          else { const pat=String(r.pattern||'').toLowerCase(); if(pat && String(text).toLowerCase().includes(pat)) return r.category; }
+        }catch{}
       }
       return fallback;
     }
-
     function parseSMS(text){
-      if (!text) return { amount:0, merchant:'' };
-      const amtMatch = text.match(/(?:inr|rs\\.?|amount)\\s*([0-9,]+(?:\\.[0-9]{1,2})?)/i);
-      const amount = amtMatch ? Number(amtMatch[1].replace(/,/g,'')) : 0;
-      let merchant = '';
-      let m = text.match(/at\\s+([A-Za-z0-9 &_.-]{3,})/i);
-      if (m) merchant = trimP(m[1]);
-      if (!merchant){ m = text.match(/to\\s+([A-Za-z0-9._-]+@[A-Za-z]+)/i); if (m) merchant = trimP(m[1]); }
-      if (!merchant){ m = text.match(/UPI-?\\w*\\s+to\\s+([^\\s,]+)/i); if (m) merchant = trimP(m[1]); }
-      return { amount: isFinite(amount)?amount:0, merchant };
+      if(!text) return {amount:0, merchant:''};
+      const amtMatch=text.match(/(?:inr|rs\.?|amount)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i);
+      const amount=amtMatch?Number(amtMatch[1].replace(/,/g,'')):0;
+      let merchant=''; let m=text.match(/at\s+([A-Za-z0-9 &_.-]{3,})/i);
+      if(m) merchant=trimP(m[1]);
+      if(!merchant){ m=text.match(/to\s+([A-Za-z0-9._-]+@[A-Za-z]+)/i); if(m) merchant=trimP(m[1]); }
+      if(!merchant){ m=text.match(/UPI-?\w*\s+to\s+([^\s,]+)/i); if(m) merchant=trimP(m[1]); }
+      return { amount:isFinite(amount)?amount:0, merchant };
     }
     function trimP(s){ return String(s||'').replace(/[.,;:!?]$/,''); }
 
-    // State
+    // ---------- State ----------
+    const DEFAULT_RULES = [
+      { id: uid(), pattern:'zomato|swiggy', isRegex:true, flags:'i', category:'Food & Drinks', enabled:true },
+      { id: uid(), pattern:'uber|ola', isRegex:true, flags:'i', category:'Travel', enabled:true },
+      { id: uid(), pattern:'amazon|flipkart|myntra|ajio|nykaa', isRegex:true, flags:'i', category:'Shopping', enabled:true },
+      { id: uid(), pattern:'electric|bescom|tneb|tata power|reliance energy|bsnl|jio|airtel|vi', isRegex:true, flags:'i', category:'Bills & Utilities', enabled:true },
+      { id: uid(), pattern:'hospital|clinic|pharma|med|apollo|practo', isRegex:true, flags:'i', category:'Health', enabled:true },
+    ];
     const state = {
       expenses: LS.get(LS_KEYS.EXPENSES, []),
       rules: LS.get(LS_KEYS.RULES, DEFAULT_RULES),
       categories: LS.get(LS_KEYS.CATEGORIES, DEFAULT_CATEGORIES),
-      settings: LS.get(LS_KEYS.SETTINGS, { autoCategorize: true }),
+      settings: LS.get(LS_KEYS.SETTINGS, { autoCategorize:true }),
       date: todayISO(), merchant:'', amount:'', category:'Other', payment:'UPI', notes:'',
-      tab: 'add',
+      tab:'add',
     };
-    function persist(){ LS.set(LS_KEYS.EXPENSES, state.expenses); LS.set(LS_KEYS.RULES, state.rules); LS.set(LS_KEYS.CATEGORIES, state.categories); LS.set(LS_KEYS.SETTINGS, state.settings); }
+    function persist(){ LS.set(LS_KEYS.EXPENSES,state.expenses); LS.set(LS_KEYS.RULES,state.rules); LS.set(LS_KEYS.CATEGORIES,state.categories); LS.set(LS_KEYS.SETTINGS,state.settings); }
 
-    // UI
-    const root = ensureRoot();
-    injectStyles();
+    // ---------- Mount ----------
+    const root = document.getElementById('app');
+    const loading = document.querySelector('.loading'); if(loading) loading.remove();
     render();
 
-    function ensureRoot(){ let r=document.getElementById('app'); if (!r) { r=document.createElement('div'); r.id='app'; document.body.innerHTML=''; document.body.appendChild(r);} return r; }
-    function setTab(tab){ state.tab = tab; render(); }
+    function setTab(tab){ state.tab=tab; render(); }
 
     function render(){
-      root.innerHTML = `
-        <header class="hdr">
-          <div>
-            <div class="title">Mini Expense Tracker</div>
-            <div class="sub">This month: <strong>${currency(totalThisMonth())}</strong></div>
-          </div>
-          <div class="actions">
-            <button class="btn ghost" id="btnExportCsv">CSV</button>
-            <button class="btn ghost" id="btnExportJson">Backup</button>
-          </div>
-        </header>
+      root.innerHTML = [
+        '<header class="hdr">',
+          '<div>',
+            '<div class="title">Mini Expense Tracker</div>',
+            '<div class="sub">This month: <strong>'+currency(totalThisMonth())+'</strong></div>',
+          '</div>',
+          '<div class="actions">',
+            '<button class="btn ghost" id="btnExportCsv">CSV</button>',
+            '<button class="btn ghost" id="btnExportJson">Backup</button>',
+          '</div>',
+        '</header>',
+        '<nav class="tabs">',
+          ['add','insights','settings'].map(function(t){
+            return '<button data-tab="'+t+'" class="tab '+(state.tab===t?'active':'')+'">'+t.toUpperCase()+'</button>';
+          }).join(''),
+        '</nav>',
+        '<main>',
+          (state.tab==='add' ? addTabHTML() : ''),
+          (state.tab==='insights' ? insightsHTML() : ''),
+          (state.tab==='settings' ? settingsHTML() : ''),
+        '</main>',
+        '<footer class="ftr">Add to Home Screen for an app-like experience</footer>'
+      ].join('');
 
-        <nav class="tabs">
-          ${['add','insights','settings'].map(t=>`<button data-tab="${t}" class="tab ${state.tab===t?'active':''}">${t.toUpperCase()}</button>`).join('')}
-        </nav>
-
-        <main>
-          ${state.tab==='add' ? addTabHTML() : ''}
-          ${state.tab==='insights' ? insightsHTML() : ''}
-          ${state.tab==='settings' ? settingsHTML() : ''}
-        </main>
-
-        <footer class="ftr">PWA-ready • Works offline • Add to Home Screen</footer>
-      `;
-
-      Array.from(root.querySelectorAll('.tab')).forEach(btn => btn.addEventListener('click', (e)=> setTab(e.currentTarget.getAttribute('data-tab'))));
-      root.querySelector('#btnExportCsv')?.addEventListener('click', exportCSV);
-      root.querySelector('#btnExportJson')?.addEventListener('click', exportJSON);
+      // events
+      Array.prototype.forEach.call(root.querySelectorAll('.tab'), function(btn){
+        btn.addEventListener('click', function(e){ setTab(e.currentTarget.getAttribute('data-tab')); });
+      });
+      var ec = root.querySelector('#btnExportCsv'); if(ec) ec.addEventListener('click', exportCSV);
+      var ej = root.querySelector('#btnExportJson'); if(ej) ej.addEventListener('click', exportJSON);
 
       bindAddTab();
       bindSettingsTab();
     }
 
     function addTabHTML(){
-      return `
-        <section class="card">
-          <div class="card-ttl">Quick Add</div>
-          <div class="row2">
-            <div class="col">
-              <label>Date</label>
-              <input type="date" id="fDate" value="${state.date}"/>
-            </div>
-            <div class="col">
-              <label>Amount</label>
-              <input type="number" inputmode="decimal" id="fAmount" placeholder="0" value="${escapeHtml(state.amount)}"/>
-            </div>
-          </div>
-          <label>Merchant / Description</label>
-          <input id="fMerchant" placeholder="e.g., Zomato, Uber, Amazon" value="${escapeHtml(state.merchant)}"/>
-          <label>Notes</label>
-          <textarea id="fNotes" placeholder="optional">${escapeHtml(state.notes)}</textarea>
-          <div class="row2">
-            <div class="col">
-              <label>Category</label>
-              <select id="fCategory">${state.categories.map(c=>`<option ${state.category===c?'selected':''}>${c}</option>`).join('')}</select>
-            </div>
-            <div class="col">
-              <label>Payment</label>
-              <select id="fPayment">${PAYMENT_METHODS.map(m=>`<option ${state.payment===m?'selected':''}>${m}</option>`).join('')}</select>
-            </div>
-          </div>
-          <div class="row2">
-            <button class="btn primary" id="btnAdd">Add</button>
-            <button class="btn" id="btnParse">Parse SMS</button>
-          </div>
-        </section>
-
-        <section class="list">
-          <div class="list-hd">
-            <div class="list-ttl">Recent</div>
-            <div class="list-sub">This month: ${currency(totalThisMonth())}</div>
-          </div>
-          ${state.expenses.length===0 ? `<div class="muted">No expenses yet. Add your first above.</div>` : ''}
-          ${state.expenses.map(e=> rowHTML(e)).join('')}
-        </section>
-      `;
+      return [
+        '<section class="card">',
+          '<div class="card-ttl">Quick Add</div>',
+          '<div class="row2">',
+            '<div class="col">',
+              '<label>Date</label>',
+              '<input type="date" id="fDate" value="'+state.date+'"/>',
+            '</div>',
+            '<div class="col">',
+              '<label>Amount</label>',
+              '<input type="number" inputmode="decimal" id="fAmount" placeholder="0" value="'+escapeHtml(state.amount)+'"/>',
+            '</div>',
+          '</div>',
+          '<label>Merchant / Description</label>',
+          '<input id="fMerchant" placeholder="e.g., Zomato, Uber, Amazon" value="'+escapeHtml(state.merchant)+'"/>',
+          '<label>Notes</label>',
+          '<textarea id="fNotes" placeholder="optional">'+escapeHtml(state.notes)+'</textarea>',
+          '<div class="row2">',
+            '<div class="col">',
+              '<label>Category</label>',
+              '<select id="fCategory">'+state.categories.map(function(c){ return '<option '+(state.category===c?'selected':'')+'>'+c+'</option>'; }).join('')+'</select>',
+            '</div>',
+            '<div class="col">',
+              '<label>Payment</label>',
+              '<select id="fPayment">'+PAYMENT_METHODS.map(function(m){ return '<option '+(state.payment===m?'selected':'')+'>'+m+'</option>'; }).join('')+'</select>',
+            '</div>',
+          '</div>',
+          '<div class="row2">',
+            '<button class="btn primary" id="btnAdd">Add</button>',
+            '<button class="btn" id="btnParse">Parse SMS</button>',
+          '</div>',
+        '</section>',
+        '<section class="list">',
+          '<div class="list-hd">',
+            '<div class="list-ttl">Recent</div>',
+            '<div class="list-sub">This month: '+currency(totalThisMonth())+'</div>',
+          '</div>',
+          (state.expenses.length===0 ? '<div class="muted">No expenses yet. Add your first above.</div>' : ''),
+          state.expenses.map(rowHTML).join(''),
+        '</section>'
+      ].join('');
     }
 
     function rowHTML(e){
-      return `
-        <div class="row">
-          <div class="row-main">
-            <div class="row-title">${escapeHtml(e.merchant||'(no title)')}</div>
-            <div class="row-sub">${e.date} • ${escapeHtml(e.category)} • ${escapeHtml(e.payment)}</div>
-            ${e.notes ? `<div class="row-notes">${escapeHtml(e.notes)}</div>` : ''}
-          </div>
-          <div class="row-side">
-            <div class="amt">${currency(e.amount)}</div>
-            <button class="lnk danger" data-del="${e.id}">Delete</button>
-          </div>
-        </div>`;
+      return [
+        '<div class="row">',
+          '<div class="row-main">',
+            '<div class="row-title">'+escapeHtml(e.merchant||'(no title)')+'</div>',
+            '<div class="row-sub">'+e.date+' • '+escapeHtml(e.category)+' • '+escapeHtml(e.payment)+'</div>',
+            (e.notes ? '<div class="row-notes">'+escapeHtml(e.notes)+'</div>' : ''),
+          '</div>',
+          '<div class="row-side">',
+            '<div class="amt">'+currency(e.amount)+'</div>',
+            '<button class="lnk danger" data-del="'+e.id+'">Delete</button>',
+          '</div>',
+        '</div>'
+      ].join('');
     }
 
     function insightsHTML(){
-      const totalsByCat = byCategory();
-      const totalsByMonth = byMonth();
-      return `
-        <section class="card">
-          <div class="card-ttl">Insights</div>
-          <div class="muted">Total (excl. Transfers): <b>${currency(totalAll())}</b></div>
-          <div class="subttl">Category Split</div>
-          <ul class="bullet">${totalsByCat.map(x=>`<li><span>${escapeHtml(x.name)}</span><b>${currency(x.value)}</b></li>`).join('') || '<li class="muted">No data</li>'}</ul>
-          <div class="subttl">Monthly Trend</div>
-          <ul class="bullet">${totalsByMonth.map(x=>`<li><span>${x.month}</span><b>${currency(x.total)}</b></li>`).join('') || '<li class="muted">No data</li>'}</ul>
-        </section>`;
+      var totalsByCat = byCategory();
+      var totalsByMonth = byMonth();
+      return [
+        '<section class="card">',
+          '<div class="card-ttl">Insights</div>',
+          '<div class="muted">Total (excl. Transfers): <b>'+currency(totalAll())+'</b></div>',
+          '<div class="subttl">Category Split</div>',
+          '<ul class="bullet">'+(totalsByCat.length ? totalsByCat.map(function(x){ return '<li><span>'+escapeHtml(x.name)+'</span><b>'+currency(x.value)+'</b></li>'; }).join('') : '<li class="muted">No data</li>')+'</ul>',
+          '<div class="subttl">Monthly Trend</div>',
+          '<ul class="bullet">'+(totalsByMonth.length ? totalsByMonth.map(function(x){ return '<li><span>'+x.month+'</span><b>'+currency(x.total)+'</b></li>'; }).join('') : '<li class="muted">No data</li>')+'</ul>',
+        '</section>'
+      ].join('');
     }
 
     function settingsHTML(){
-      return `
-        <section class="card">
-          <div class="card-ttl">General</div>
-          <div class="row-sb">
-            <div>
-              <div class="lbl">Auto-categorize</div>
-              <div class="muted">Use rules to guess category from merchant/notes.</div>
-            </div>
-            <label class="switch"><input type="checkbox" id="chkAuto" ${state.settings.autoCategorize?'checked':''}/><span class="slider"></span></label>
-          </div>
-          <div class="lbl" style="margin-top:10px;">Categories</div>
-          <div id="catPills" class="pills">${state.categories.map(c=>`<span class="pill">${escapeHtml(c)}</span>`).join('')}</div>
-          <div class="row2"><input id="txtNewCat" placeholder="Add new category"/><button class="btn" id="btnAddCat">Add</button></div>
-        </section>
-
-        <section class="card">
-          <div class="card-ttl">Rules (top to bottom)</div>
-          ${state.rules.map((r,idx)=> ruleHTML(r, idx)).join('')}
-          <button class="btn" id="btnAddRule">Add Rule</button>
-        </section>
-
-        <section class="card">
-          <div class="card-ttl">Import / Restore</div>
-          <div class="row2"><input type="file" id="csvFile" accept=".csv,text/csv"/><button class="btn" id="btnImportCsv">Import CSV</button></div>
-          <div class="row2"><input type="file" id="jsonFile" accept="application/json,.json"/><button class="btn" id="btnImportJson">Restore JSON</button></div>
-          <div class="muted">CSV columns: date, merchant, amount, category, payment, notes</div>
-        </section>`;
+      return [
+        '<section class="card">',
+          '<div class="card-ttl">General</div>',
+          '<div class="row-sb">',
+            '<div><div class="lbl">Auto-categorize</div><div class="muted">Use rules to guess category from merchant/notes.</div></div>',
+            '<label class="switch"><input type="checkbox" id="chkAuto" '+(state.settings.autoCategorize?'checked':'')+' /><span class="slider"></span></label>',
+          '</div>',
+          '<div class="lbl" style="margin-top:10px;">Categories</div>',
+          '<div id="catPills" class="pills">'+state.categories.map(function(c){ return '<span class="pill">'+escapeHtml(c)+'</span>'; }).join('')+'</div>',
+          '<div class="row2"><input id="txtNewCat" placeholder="Add new category"/><button class="btn" id="btnAddCat">Add</button></div>',
+        '</section>',
+        '<section class="card">',
+          '<div class="card-ttl">Rules (top to bottom)</div>',
+          state.rules.map(ruleHTML).join(''),
+          '<button class="btn" id="btnAddRule">Add Rule</button>',
+        '</section>',
+        '<section class="card">',
+          '<div class="card-ttl">Import / Restore</div>',
+          '<div class="row2"><input type="file" id="csvFile" accept=".csv,text/csv"/><button class="btn" id="btnImportCsv">Import CSV</button></div>',
+          '<div class="row2"><input type="file" id="jsonFile" accept="application/json,.json"/><button class="btn" id="btnImportJson">Restore JSON</button></div>',
+          '<div class="muted">CSV columns: date, merchant, amount, category, payment, notes</div>',
+        '</section>'
+      ].join('');
     }
 
     function ruleHTML(r, idx){
-      return `
-        <div class="rule">
-          <div class="rule-hd">
-            <div class="muted">#${idx+1}</div>
-            <div class="rule-actions">
-              <label class="switch small"><input type="checkbox" data-toggle="${r.id}" ${r.enabled?'checked':''}/><span class="slider"></span></label>
-              <button class="lnk danger" data-delrule="${r.id}">Delete</button>
-            </div>
-          </div>
-          <div class="row2">
-            <div class="col">
-              <label>Pattern ${r.isRegex ? '(RegExp)' : '(Text contains)'}</label>
-              <input data-pattern="${r.id}" value="${escapeHtml(r.pattern)}"/>
-              <label class="chk"><input type="checkbox" data-regex="${r.id}" ${r.isRegex?'checked':''}/> Use Regular Expression</label>
-            </div>
-            <div class="col">
-              <label>Category</label>
-              <select data-cat="${r.id}">${state.categories.map(c=>`<option ${r.category===c?'selected':''}>${c}</option>`).join('')}</select>
-              ${r.isRegex ? `<input data-flags="${r.id}" placeholder="flags (e.g., i)" value="${escapeHtml(r.flags||'i')}"/>` : ''}
-            </div>
-          </div>
-        </div>`;
+      return [
+        '<div class="rule">',
+          '<div class="rule-hd">',
+            '<div class="muted">#'+(idx+1)+'</div>',
+            '<div class="rule-actions">',
+              '<label class="switch small"><input type="checkbox" data-toggle="'+r.id+'" '+(r.enabled?'checked':'')+' /><span class="slider"></span></label>',
+              '<button class="lnk danger" data-delrule="'+r.id+'">Delete</button>',
+            '</div>',
+          '</div>',
+          '<div class="row2">',
+            '<div class="col">',
+              '<label>Pattern '+(r.isRegex ? '(RegExp)' : '(Text contains)')+'</label>',
+              '<input data-pattern="'+r.id+'" value="'+escapeHtml(r.pattern)+'"/>',
+              '<label class="chk"><input type="checkbox" data-regex="'+r.id+'" '+(r.isRegex?'checked':'')+'/> Use Regular Expression</label>',
+            '</div>',
+            '<div class="col">',
+              '<label>Category</label>',
+              '<select data-cat="'+r.id+'">'+state.categories.map(function(c){ return '<option '+(r.category===c?'selected':'')+'>'+c+'</option>'; }).join('')+'</select>',
+              (r.isRegex ? '<input data-flags="'+r.id+'" placeholder="flags (e.g., i)" value="'+escapeHtml(r.flags||'i')+'"/>' : ''),
+            '</div>',
+          '</div>',
+        '</div>'
+      ].join('');
     }
 
+    // ---------- Bindings ----------
     function bindAddTab(){
-      if (state.tab !== 'add') return;
-      const q = (sel)=> root.querySelector(sel);
-      q('#fDate')?.addEventListener('input', e=> state.date = e.target.value || todayISO());
-      q('#fAmount')?.addEventListener('input', e=> state.amount = e.target.value);
-      q('#fMerchant')?.addEventListener('input', e=> { state.merchant = e.target.value; maybeAutoCategory(); });
-      q('#fNotes')?.addEventListener('input', e=> { state.notes = e.target.value; maybeAutoCategory(); });
-      q('#fCategory')?.addEventListener('change', e=> state.category = e.target.value);
-      q('#fPayment')?.addEventListener('change', e=> state.payment = e.target.value);
+      if(state.tab!=='add') return;
+      var q=function(s){ return root.querySelector(s); };
+      var fDate=q('#fDate'); if(fDate) fDate.addEventListener('input',function(e){ state.date=e.target.value||todayISO(); });
+      var fAmt=q('#fAmount'); if(fAmt) fAmt.addEventListener('input',function(e){ state.amount=e.target.value; });
+      var fMer=q('#fMerchant'); if(fMer) fMer.addEventListener('input',function(e){ state.merchant=e.target.value; maybeAuto(); });
+      var fNotes=q('#fNotes'); if(fNotes) fNotes.addEventListener('input',function(e){ state.notes=e.target.value; maybeAuto(); });
+      var fCat=q('#fCategory'); if(fCat) fCat.addEventListener('change',function(e){ state.category=e.target.value; });
+      var fPay=q('#fPayment'); if(fPay) fPay.addEventListener('change',function(e){ state.payment=e.target.value; });
 
-      function maybeAutoCategory(){
-        if (state.settings.autoCategorize && (!state.category || state.category==='Other')){
-          state.category = applyRules(state.rules, \`\${state.merchant} \${state.notes}\`, 'Other');
-          const sel = q('#fCategory'); if (sel) sel.value = state.category;
+      function maybeAuto(){
+        if(state.settings.autoCategorize && (!state.category || state.category==='Other')){
+          state.category = applyRules(state.rules, (state.merchant||'')+' '+(state.notes||''), 'Other');
+          if(fCat) fCat.value = state.category;
         }
       }
 
-      q('#btnAdd')?.addEventListener('click', ()=>{
-        if (!state.amount) { alert('Amount required'); return; }
-        const entry = { id: uid(), date: state.date||todayISO(), merchant: (state.merchant||'').trim(), amount: Number(state.amount), category: state.category||'Other', payment: state.payment, notes: (state.notes||'').trim() };
-        state.expenses = [entry, ...state.expenses]; persist();
+      var bAdd=q('#btnAdd'); if(bAdd) bAdd.addEventListener('click', function(){
+        if(!state.amount){ alert('Amount required'); return; }
+        var entry={ id:uid(), date:state.date||todayISO(), merchant:(state.merchant||'').trim(), amount:Number(state.amount), category:state.category||'Other', payment:state.payment, notes:(state.notes||'').trim() };
+        state.expenses=[entry].concat(state.expenses); persist();
         state.date=todayISO(); state.merchant=''; state.amount=''; state.notes=''; state.category='Other'; state.payment='UPI';
         render();
       });
 
-      q('#btnParse')?.addEventListener('click', ()=>{
-        const sample = prompt('Paste an SMS/email line (we\\'ll try to extract amount & merchant)'); if (!sample) return; const res = parseSMS(sample);
-        if (res.amount) { state.amount = String(res.amount); q('#fAmount').value = state.amount; }
-        if (res.merchant) { state.merchant = res.merchant; q('#fMerchant').value = state.merchant; maybeAutoCategory(); }
+      var bParse=q('#btnParse'); if(bParse) bParse.addEventListener('click', function(){
+        var sample=prompt("Paste an SMS/email line (we'll try to extract amount & merchant)"); if(!sample) return;
+        var res=parseSMS(sample);
+        if(res.amount){ state.amount=String(res.amount); if(fAmt) fAmt.value=state.amount; }
+        if(res.merchant){ state.merchant=res.merchant; if(fMer) fMer.value=state.merchant; maybeAuto(); }
       });
 
-      Array.from(root.querySelectorAll('[data-del]')).forEach(btn => btn.addEventListener('click', (e)=>{ const id=e.currentTarget.getAttribute('data-del'); state.expenses = state.expenses.filter(x=>x.id!==id); persist(); render(); }));
+      Array.prototype.forEach.call(root.querySelectorAll('[data-del]'), function(btn){
+        btn.addEventListener('click', function(e){
+          var id=e.currentTarget.getAttribute('data-del');
+          state.expenses=state.expenses.filter(function(x){ return x.id!==id; }); persist(); render();
+        });
+      });
     }
 
     function bindSettingsTab(){
-      if (state.tab !== 'settings') return;
-      const q = (sel)=> root.querySelector(sel);
-      q('#chkAuto')?.addEventListener('change', e=> { state.settings.autoCategorize = !!e.target.checked; persist(); });
-      q('#btnAddCat')?.addEventListener('click', ()=>{ const i=q('#txtNewCat'); const v=(i.value||'').trim(); if (v && !state.categories.includes(v)){ state.categories.push(v); persist(); render(); } i.value=''; });
+      if(state.tab!=='settings') return;
+      var q=function(s){ return root.querySelector(s); };
+      var chk=q('#chkAuto'); if(chk) chk.addEventListener('change', function(e){ state.settings.autoCategorize=!!e.target.checked; persist(); });
+      var addCat=q('#btnAddCat'); if(addCat) addCat.addEventListener('click', function(){ var i=q('#txtNewCat'); var v=(i.value||'').trim(); if(v && state.categories.indexOf(v)===-1){ state.categories.push(v); persist(); render(); } i.value=''; });
 
-      Array.from(root.querySelectorAll('[data-pattern]')).forEach(inp => inp.addEventListener('input', e=>{ const id=e.target.getAttribute('data-pattern'); const r=state.rules.find(x=>x.id===id); if (r){ r.pattern=e.target.value; persist(); } }));
-      Array.from(root.querySelectorAll('[data-cat]')).forEach(sel => sel.addEventListener('change', e=>{ const id=e.target.getAttribute('data-cat'); const r=state.rules.find(x=>x.id===id); if (r){ r.category=e.target.value; persist(); } }));
-      Array.from(root.querySelectorAll('[data-regex]')).forEach(chk => chk.addEventListener('change', e=>{ const id=e.target.getAttribute('data-regex'); const r=state.rules.find(x=>x.id===id); if (r){ r.isRegex=!!e.target.checked; persist(); render(); } }));
-      Array.from(root.querySelectorAll('[data-flags]')).forEach(inp => inp.addEventListener('input', e=>{ const id=e.target.getAttribute('data-flags'); const r=state.rules.find(x=>x.id===id); if (r){ r.flags=e.target.value; persist(); } }));
-      Array.from(root.querySelectorAll('[data-toggle]')).forEach(chk => chk.addEventListener('change', e=>{ const id=e.target.getAttribute('data-toggle'); const r=state.rules.find(x=>x.id===id); if (r){ r.enabled=!!e.target.checked; persist(); } }));
-      Array.from(root.querySelectorAll('[data-delrule]')).forEach(btn => btn.addEventListener('click', e=>{ const id=e.target.getAttribute('data-delrule'); state.rules = state.rules.filter(x=>x.id!==id); persist(); render(); }));
+      Array.prototype.forEach.call(root.querySelectorAll('[data-pattern]'), function(inp){ inp.addEventListener('input', function(e){ var id=e.target.getAttribute('data-pattern'); var r=state.rules.find(function(x){ return x.id===id; }); if(r){ r.pattern=e.target.value; persist(); } }); });
+      Array.prototype.forEach.call(root.querySelectorAll('[data-cat]'), function(sel){ sel.addEventListener('change', function(e){ var id=e.target.getAttribute('data-cat'); var r=state.rules.find(function(x){ return x.id===id; }); if(r){ r.category=e.target.value; persist(); } }); });
+      Array.prototype.forEach.call(root.querySelectorAll('[data-regex]'), function(chk){ chk.addEventListener('change', function(e){ var id=e.target.getAttribute('data-regex'); var r=state.rules.find(function(x){ return x.id===id; }); if(r){ r.isRegex=!!e.target.checked; persist(); render(); } }); });
+      Array.prototype.forEach.call(root.querySelectorAll('[data-flags]'), function(inp){ inp.addEventListener('input', function(e){ var id=e.target.getAttribute('data-flags'); var r=state.rules.find(function(x){ return x.id===id; }); if(r){ r.flags=e.target.value; persist(); } }); });
+      Array.prototype.forEach.call(root.querySelectorAll('[data-toggle]'), function(chk){ chk.addEventListener('change', function(e){ var id=e.target.getAttribute('data-toggle'); var r=state.rules.find(function(x){ return x.id===id; }); if(r){ r.enabled=!!e.target.checked; persist(); } }); });
+      Array.prototype.forEach.call(root.querySelectorAll('[data-delrule]'), function(btn){ btn.addEventListener('click', function(e){ var id=e.target.getAttribute('data-delrule'); state.rules=state.rules.filter(function(x){ return x.id!==id; }); persist(); render(); }); });
 
-      // Importers
-      q('#btnImportCsv')?.addEventListener('click', ()=>{
-        const f=q('#csvFile'); if (!f.files || !f.files[0]) return alert('Pick a CSV file first'); const file=f.files[0]; const reader=new FileReader();
-        reader.onload = ()=>{ const rows = fromCSV(String(reader.result||'')); if (rows.length){ state.expenses = [...rows, ...state.expenses]; persist(); render(); } };
-        reader.readAsText(file);
+      var bCsv=q('#btnImportCsv'); if(bCsv) bCsv.addEventListener('click', function(){
+        var f=q('#csvFile'); if(!f.files||!f.files[0]) return alert('Pick a CSV file first');
+        var reader=new FileReader(); reader.onload=function(){ var rows=fromCSV(String(reader.result||'')); if(rows.length){ state.expenses=rows.concat(state.expenses); persist(); render(); } }; reader.readAsText(f.files[0]);
       });
-      q('#btnImportJson')?.addEventListener('click', ()=>{
-        const f=q('#jsonFile'); if (!f.files || !f.files[0]) return alert('Pick a JSON file first'); const file=f.files[0]; const reader=new FileReader();
-        reader.onload = ()=>{ try{ const obj=JSON.parse(String(reader.result||'{}')); if (Array.isArray(obj.expenses)) state.expenses=obj.expenses; if (Array.isArray(obj.rules)) state.rules=obj.rules; if (Array.isArray(obj.categories)) state.categories=obj.categories; if (obj.settings && typeof obj.settings==='object') state.settings=obj.settings; persist(); render(); } catch { alert('Invalid JSON'); } };
-        reader.readAsText(file);
+      var bJson=q('#btnImportJson'); if(bJson) bJson.addEventListener('click', function(){
+        var f=q('#jsonFile'); if(!f.files||!f.files[0]) return alert('Pick a JSON file first');
+        var reader=new FileReader(); reader.onload=function(){ try{ var obj=JSON.parse(String(reader.result||'{}')); if(Array.isArray(obj.expenses)) state.expenses=obj.expenses; if(Array.isArray(obj.rules)) state.rules=obj.rules; if(Array.isArray(obj.categories)) state.categories=obj.categories; if(obj.settings&&typeof obj.settings==='object') state.settings=obj.settings; persist(); render(); } catch { alert('Invalid JSON'); } }; reader.readAsText(f.files[0]);
       });
     }
 
-    // Data helpers (Transfers excluded)
+    // ---------- Data helpers (Transfers excluded) ----------
     function isSpend(e){ return (e && String(e.category).toLowerCase() !== 'transfers'); }
-    function totalThisMonth(){ const mk=monthKey(todayISO()); return (state.expenses||[]).filter(e=> monthKey(e.date)===mk && isSpend(e)).reduce((a,b)=>a+Number(b.amount||0),0); }
-    function totalAll(){ return (state.expenses||[]).filter(isSpend).reduce((a,b)=>a+Number(b.amount||0),0); }
-    function byCategory(){ const map={}; for (const e of state.expenses||[]){ if (!isSpend(e)) continue; const k=e.category||'Other'; map[k]=(map[k]||0)+Number(e.amount||0); } return Object.entries(map).map(([name,value])=>({ name, value })); }
-    function byMonth(){ const map={}; for (const e of state.expenses||[]){ if (!isSpend(e)) continue; const k=monthKey(e.date); map[k]=(map[k]||0)+Number(e.amount||0); } return Object.entries(map).sort(([a],[b])=>a>b?1:-1).map(([month,total])=>({ month, total })); }
+    function totalThisMonth(){ var mk=monthKey(todayISO()); return (state.expenses||[]).filter(function(e){ return monthKey(e.date)===mk && isSpend(e); }).reduce(function(a,b){ return a+Number(b.amount||0); },0); }
+    function totalAll(){ return (state.expenses||[]).filter(isSpend).reduce(function(a,b){ return a+Number(b.amount||0); },0); }
+    function byCategory(){ var map={}; (state.expenses||[]).forEach(function(e){ if(!isSpend(e)) return; var k=e.category||'Other'; map[k]=(map[k]||0)+Number(e.amount||0); }); return Object.keys(map).map(function(name){ return {name:name, value:map[name]}; }); }
+    function byMonth(){ var map={}; (state.expenses||[]).forEach(function(e){ if(!isSpend(e)) return; var k=monthKey(e.date); map[k]=(map[k]||0)+Number(e.amount||0); }); return Object.keys(map).sort().map(function(m){ return {month:m, total:map[m]}; }); }
 
-    function toCSV(expenses){ const header=['date','merchant','amount','category','payment','notes'].join(','); const rows=(expenses||[]).map(e=>[e.date, csvq(e.merchant), e.amount, csvq(e.category), csvq(e.payment), csvq(e.notes)].join(',')); return [header, ...rows].join('\\n'); }
-    function exportCSV(){ const blob = new Blob([toCSV(state.expenses)], { type:'text/csv;charset=utf-8;' }); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`expenses-${todayISO()}.csv`; a.click(); URL.revokeObjectURL(url); }
-    function exportJSON(){ const blob = new Blob([JSON.stringify({ expenses: state.expenses, rules: state.rules, categories: state.categories, settings: state.settings }, null, 2)], { type:'application/json' }); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`expenses-backup-${todayISO()}.json`; a.click(); URL.revokeObjectURL(url); }
-    function csvq(s=''){ return '\"' + String(s).replace(/\"/g,'\"\"') + '\"'; }
+    function toCSV(expenses){ var header=['date','merchant','amount','category','payment','notes'].join(','); var rows=(expenses||[]).map(function(e){ return [e.date, csvq(e.merchant), e.amount, csvq(e.category), csvq(e.payment), csvq(e.notes)].join(','); }); return [header].concat(rows).join('\n'); }
+    function exportCSV(){ var blob=new Blob([toCSV(state.expenses)],{type:'text/csv;charset=utf-8;'}); var url=URL.createObjectURL(blob); var a=document.createElement('a'); a.href=url; a.download='expenses-'+todayISO()+'.csv'; a.click(); URL.revokeObjectURL(url); }
+    function exportJSON(){ var blob=new Blob([JSON.stringify({ expenses:state.expenses, rules:state.rules, categories:state.categories, settings:state.settings }, null, 2)],{type:'application/json'}); var url=URL.createObjectURL(blob); var a=document.createElement('a'); a.href=url; a.download='expenses-backup-'+todayISO()+'.json'; a.click(); URL.revokeObjectURL(url); }
+    function csvq(s){ s = (s==null?'':String(s)); return '"'+s.replace(/"/g,'""')+'"'; }
 
     function fromCSV(text){
-      const lines = String(text||'').split(/\\r?\\n/).filter(Boolean);
-      const out=[]; if (!lines.length) return out;
-      const header = lines[0].split(',').map(h=>h.trim().toLowerCase());
-      const idx = (k)=> header.indexOf(k);
-      for (let i=1;i<lines.length;i++){
-        const cols = splitCSV(lines[i]);
+      var lines=String(text||'').split(/\r?\n/).filter(Boolean);
+      var out=[]; if(!lines.length) return out;
+      var header=lines[0].split(',').map(function(h){ return h.trim().toLowerCase(); });
+      function idx(k){ return header.indexOf(k); }
+      for(var i=1;i<lines.length;i++){
+        var cols = splitCSV(lines[i]);
         out.push({ id: uid(), date: cols[idx('date')]||todayISO(), merchant: unq(cols[idx('merchant')]||''), amount: Number(cols[idx('amount')]||0), category: unq(cols[idx('category')]||'Other'), payment: unq(cols[idx('payment')]||'Other'), notes: unq(cols[idx('notes')]||'') });
       }
       return out;
     }
-    function splitCSV(line){ const out=[]; let cur=''; let inQ=false; for (let i=0;i<line.length;i++){ const ch=line[i]; if (ch==='\"'){ if (inQ && line[i+1]==='\"'){ cur+='\"'; i++; } else inQ=!inQ; } else if (ch===',' && !inQ){ out.push(cur); cur=''; } else cur+=ch; } out.push(cur); return out; }
-    function unq(s){ return String(s||'').replace(/^\"|\"$/g,'').replace(/\"\"/g,'\"'); }
-
-    // Styles
-    function injectStyles(){
-      const css = `
-        :root{ --bg:#fff; --ink:#111; --muted:#6b7280; --line:#e5e7eb; --pill:#f3f4f6; --accent:#111; }
-        *{ box-sizing:border-box; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji'; }
-        body{ margin:0; background:var(--bg); color:var(--ink); }
-        .hdr{ position:sticky; top:0; display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--line); background:rgba(255,255,255,.92); backdrop-filter:saturate(180%) blur(8px); }
-        .title{ font-weight:800; }
-        .sub{ color:var(--muted); font-size:.9rem; }
-        .actions{ display:flex; gap:8px; }
-        .btn{ border:1px solid var(--line); background:#f9fafb; padding:10px 12px; border-radius:12px; font-weight:600; }
-        .btn.ghost{ background:#fff; }
-        .btn.primary{ background:var(--accent); color:#fff; }
-        .tabs{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; padding:8px; border-bottom:1px solid var(--line); }
-        .tab{ border:1px solid var(--line); padding:10px 12px; border-radius:12px; background:#f3f4f6; font-weight:700; color:#555; }
-        .tab.active{ background:#111; color:#fff; }
-        main{ padding:16px; max-width:760px; margin:0 auto; }
-        .card{ border:1px solid var(--line); border-radius:16px; padding:12px; margin-bottom:14px; }
-        .card-ttl{ font-weight:800; margin-bottom:8px; }
-        .row2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:8px 0; }
-        .row-sb{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
-        .col{ display:flex; flex-direction:column; }
-        label{ color:#555; font-size:.9rem; margin:6px 0; }
-        input, select, textarea{ width:100%; border:1px solid var(--line); border-radius:12px; padding:10px 12px; }
-        textarea{ min-height:72px; }
-        .list-hd{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:6px; }
-        .list-ttl{ font-weight:700; }
-        .list-sub{ color:var(--muted); font-size:.9rem; }
-        .muted{ color:var(--muted); }
-        .row{ display:flex; gap:12px; border:1px solid var(--line); border-radius:12px; padding:10px; margin-bottom:8px; }
-        .row-title{ font-weight:700; }
-        .row-sub{ color:#6b7280; font-size:.85rem; }
-        .row-notes{ color:#374151; font-size:.9rem; margin-top:4px; }
-        .row-side{ display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
-        .amt{ font-weight:800; }
-        .lnk{ background:none; border:none; padding:0; color:#2563eb; font-weight:700; }
-        .lnk.danger{ color:#dc2626; }
-        .pills{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
-        .pill{ padding:6px 10px; border-radius:999px; background:var(--pill); border:1px solid var(--line); }
-        .bullet{ list-style:none; padding:0; margin:6px 0 10px; }
-        .bullet li{ display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px dashed var(--line); }
-        .subttl{ font-weight:700; margin-top:8px; }
-        .ftr{ text-align:center; color:var(--muted); font-size:.8rem; margin:16px 0 28px; }
-        @media (max-width: 560px){ .row2{ grid-template-columns:1fr; } }
-      `;
-      const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
-    }
-
-    function escapeHtml(s){ return String(s ?? '').replace(/[&<>\"']/g, (c)=> ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;','\\'':'&#39;'}[c])); }
-
-    // Tests (Transfers excluded + core logic)
-    (function runTests(){
-      const tests = [];
-      function t(name, fn){ tests.push({ name, fn }); }
-
-      t('applyRules: regex match Zomato -> Food & Drinks', ()=>{ const rules=[{enabled:true,isRegex:true,pattern:'zomato',flags:'i',category:'Food & Drinks'}]; const got=applyRules(rules, 'Paid at ZOMATO', 'Other'); if (got!=='Food & Drinks') throw new Error('bad'); });
-      t('applyRules: contains Uber -> Travel', ()=>{ const rules=[{enabled:true,isRegex:false,pattern:'uber',category:'Travel'}]; const got=applyRules(rules,'uber ride','Other'); if (got!=='Travel') throw new Error('bad'); });
-      t('applyRules: no match -> Other', ()=>{ const rules=[{enabled:true,isRegex:false,pattern:'zomato',category:'Food'}]; const got=applyRules(rules,'random merchant','Other'); if (got!=='Other') throw new Error('bad'); });
-      t('monthKey: returns YYYY-MM', ()=>{ const out=monthKey('2025-09-13'); if (out!=='2025-09') throw new Error('bad'); });
-      t('parseSMS: INR amount and merchant at X', ()=>{ const {amount, merchant}=parseSMS('INR 1,234.50 spent at AMAZON on card'); if (amount!==1234.5) throw new Error('bad amt'); if ((merchant||'').toLowerCase()!=='amazon') throw new Error('bad merch'); });
-      t('parseSMS: UPI to id', ()=>{ const {amount, merchant}=parseSMS('UPI-123456 to abc@okicici for Rs 500'); if (amount!==500) throw new Error('bad amt'); if ((merchant||'').toLowerCase()!=='abc@okicici') throw new Error('bad merch'); });
-      t('currency: formats INR 1000', ()=>{ const s=currency(1000); if (!/₹\\s?1,?000/.test(s)) throw new Error('bad fmt'); });
-
-      // Transfers excluded
-      t('exclude Transfers from totals', ()=>{
-        const orig = state.expenses.slice();
-        state.expenses = [
-          {date:'2025-09-01', merchant:'Self', amount:1000, category:'Transfers', payment:'UPI', notes:''},
-          {date:'2025-09-02', merchant:'Zomato', amount:200, category:'Food & Drinks', payment:'UPI', notes:''},
-        ];
-        if (totalAll() !== 200) throw new Error('Transfers included unexpectedly');
-        const cats = byCategory().map(x=>x.name);
-        if (cats.includes('Transfers')) throw new Error('Transfers appeared in categories');
-        state.expenses = orig;
-      });
-
-      const results = [];
-      for (const {name, fn} of tests){ try { fn(); results.push(['PASS', name]); } catch(e){ console.error('TEST FAIL:', name, e); results.push(['FAIL', name, String(e.message||e)]); } }
-      const anyFail = results.some(r=>r[0]==='FAIL');
-      const banner = document.createElement('div');
-      banner.style.cssText = "position:fixed;right:8px;bottom:8px;padding:6px 10px;border-radius:10px;font-weight:700;font-size:.8rem;z-index:9999;" + (anyFail?"background:#fee2e2;color:#991b1b;border:1px solid #fecaca":"background:#dcfce7;color:#14532d;border:1px solid #bbf7d0");
-      banner.textContent = anyFail ? "Tests: " + results.filter(r=>r[0]==='PASS').length + "/" + results.length + " passed" : "All tests passed (" + results.length + ")";
-      document.body.appendChild(banner);
-    })();
+    function splitCSV(line){ var out=[], cur='', inQ=false; for(var i=0;i<line.length;i++){ var ch=line[i]; if(ch=='"'){ if(inQ && line[i+1]=='"'){ cur+='"'; i++; } else inQ=!inQ; } else if(ch==',' && !inQ){ out.push(cur); cur=''; } else cur+=ch; } out.push(cur); return out; }
+    function unq(s){ s=String(s||''); return s.replace(/^"|"$|/g,'').replace(/""/g,'"'); }
 
   })();
-  // === END APP CODE ===
   </script>
 </body>
 </html>
